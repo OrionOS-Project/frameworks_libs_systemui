@@ -276,7 +276,7 @@ public class IconProvider implements ResourceBasedOverride {
      */
     public void updateSystemState() {
         mSystemState = mContext.getResources().getConfiguration().getLocales().toLanguageTags()
-                + "," + Build.VERSION.INCREMENTAL;
+                + "," + Build.VERSION.INCREMENTAL + ThemedIconSettings.getState(mContext);
     }
 
     /**
@@ -301,10 +301,16 @@ public class IconProvider implements ResourceBasedOverride {
 
         final Resources mResources;
         final int mResID;
+        final Context mContext;
 
         public ThemeData(Resources resources, int resID) {
+            this(resources, resID, null);
+        }
+
+        public ThemeData(Resources resources, int resID, Context context) {
             mResources = resources;
             mResID = resID;
+            mContext = context;
         }
 
         Drawable loadPaddedDrawable() {

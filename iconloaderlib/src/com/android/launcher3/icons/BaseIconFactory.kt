@@ -166,8 +166,10 @@ constructor(
         // Create the bitmap first
         val oldBounds = icon.bounds
 
+        val isIconPackIcon = icon is FullBleedBitmapDrawable
+
         var tempIcon: Drawable = icon
-        if (options.isFullBleed && icon is BitmapDrawable) {
+        if (!isIconPackIcon && options.isFullBleed && icon is BitmapDrawable) {
             // If the source is a full-bleed icon, create an adaptive icon by insetting this icon to
             // the extra padding
             var inset = AdaptiveIconDrawable.getExtraInsetFraction()
@@ -180,18 +182,23 @@ constructor(
         }
 
         val noWrapHintSet = (tempIcon.changingConfigurations and CONFIG_HINT_NO_WRAP) != 0
-        if (options.wrapNonAdaptiveIcon && !noWrapHintSet) {
+        if (!isIconPackIcon && options.wrapNonAdaptiveIcon && !noWrapHintSet) {
             tempIcon = wrapToAdaptiveIcon(tempIcon, options)
         }
 
-        val drawFullBleed = if (noWrapHintSet) false
-            else options.drawFullBleed ?: drawFullBleedIcons
-        val bitmap = drawableToBitmap(tempIcon, drawFullBleed, options)
+        val drawFullBleed = if (noWrapHintSet) {
+            false
+        } else if (isIconPackIcon) {
+            true
+        } else {
+            options.drawFullBleed ?: drawFullBleedIcons
+        }
+        val bitmap = drawableToBitmap(tempIcon, drawFullBleed, options, isIconPackIcon)
         icon.bounds = oldBounds
 
         val color = options.extractedColor ?: findDominantColorByHue(bitmap)
         var flagOp = getBitmapFlagOp(options)
-        if (drawFullBleed) {
+        if (drawFullBleed && !isIconPackIcon) {
             flagOp = flagOp.addFlag(BitmapInfo.FLAG_FULL_BLEED)
             bitmap.setHasAlpha(false)
         }
@@ -207,7 +214,9 @@ constructor(
             info = icon.getUpdatedBitmapInfo(info, this)
         }
 
-        if (IconProvider.ATLEAST_T && themeController != null) {
+        if (isIconPackIcon) {
+            info = info.copy(themedBitmap = ThemedBitmap.NOT_SUPPORTED)
+        } else if (IconProvider.ATLEAST_T && themeController != null) {
             info =
                 info.copy(
                     themedBitmap =
@@ -290,6 +299,7 @@ constructor(
         icon: Drawable,
         drawFullBleed: Boolean,
         options: IconOptions,
+        isIconPackIcon: Boolean = false,
     ): Bitmap {
         if (icon is AdaptiveIconDrawable) {
             // We are ignoring KEY_SHADOW_DISTANCE because regular icons ignore this at the
@@ -311,7 +321,7 @@ constructor(
                         shadowGenerator.addPathShadow(icon.iconMask, canvas)
                     if (icon is Extender) icon.drawForPersistence()
 
-                    if (drawFullBleed) {
+                    if (drawFullBleed && !isIconPackIcon) {
                         drawColor(Color.BLACK)
                         icon.background?.draw(canvas)
                         icon.foreground?.draw(canvas)
@@ -331,7 +341,7 @@ constructor(
             iconToDraw.setBounds(0, 0, iconBitmapSize, iconBitmapSize)
 
             return createBitmap(options) { canvas, bitmap ->
-                if (drawFullBleed) canvas.drawColor(Color.BLACK)
+                if (drawFullBleed && !isIconPackIcon) canvas.drawColor(Color.BLACK)
                 iconToDraw.draw(canvas)
 
                 if (options.addShadows && bitmap != null && !drawFullBleed) {
